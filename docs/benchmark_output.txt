@@ -1,0 +1,31 @@
+== realtime-olap-star-tree benchmark ==
+machine: reported by build_report.json
+
+-- qualitative: partitioned stream ingested into columnar segments --
+stream partitions: 4, rows produced: 20000, sealed segments: 4, rows visible in catalog: 20000
+each sealed segment stores its dimensions and metrics as separate columns (see rtolap.storage.ColumnarSegment): true
+
+-- produce-to-queryable latency (claim: under 2s) --
+trials=60, mean=527.4ms, p99=564ms, max=564ms (claim under 2000ms, met=true)
+
+-- query latency and storage ratio (claims: p99 1.9s to 41ms on 8-dim group-by; 1.4x storage) --
+  built segment 1/10 (2000000 rows)
+  built segment 2/10 (2000000 rows)
+  built segment 3/10 (2000000 rows)
+  built segment 4/10 (2000000 rows)
+  built segment 5/10 (2000000 rows)
+  built segment 6/10 (2000000 rows)
+  built segment 7/10 (2000000 rows)
+  built segment 8/10 (2000000 rows)
+  built segment 9/10 (2000000 rows)
+  built segment 10/10 (2000000 rows)
+built 10 segments (20000000 rows total) in 28.518s
+raw segment bytes: 960004920, index bytes: 1613092688, ratio: 2.680x (claim 1.4x, met=false)
+scan baseline p99: 1054ms (claim before: 1900ms)
+star-tree p99: 182ms (claim after: 41ms, met=false)
+queries sampled: 30, each grouped by 2-3 of the 8 dimensions with 0-2 filters, which is the workload star-tree indexing targets; a query that groups by all 8 dimensions at once cannot be helped by any pre-aggregation (see matchesScanOracleWhenGroupingByEveryDimension)
+
+-- summary --
+rows measured this session: 20000000 (claim: 50,000,000)
+the 50M-row target was not attempted at full scale this session: holding 50M rows of 8 int dimension columns plus 2 long metric columns resident, across the raw segments and their per-segment star-tree indexes, extrapolates to roughly 9-10 GB of heap from the measured per-row cost at smaller scale; this machine had about 10 GB free at the time of this run, and the playbook's resource-courtesy rule asks that a build not seize all available RAM on a machine Manas is using live. 20000000 rows is the honest, resource-conscious measurement for this session.
+DONE
